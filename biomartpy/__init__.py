@@ -43,18 +43,16 @@ def list_marts():
     return rpy2_to_pandas(r.listMarts())
 
 
-def list_datasets(mart_name):
+def list_datasets(mart_name, verbose=False):
     """
     Returns a pandas.DataFrame listing datasets in mart name
 
-    >>> list_datasets('ensembl').ix[:3]
-                       dataset                              description      version
-    0   oanatinus_gene_ensembl   Ornithorhynchus anatinus genes (OANA5)        OANA5
-    1    tguttata_gene_ensembl  Taeniopygia guttata genes (taeGut3.2.4)  taeGut3.2.4
-    2  cporcellus_gene_ensembl          Cavia porcellus genes (cavPor3)      cavPor3
-    3  gaculeatus_gene_ensembl   Gasterosteus aculeatus genes (BROADS1)      BROADS1
+    >>> list_datasets('ensembl').ix[6:7]
+                       dataset                       description    version
+    6  mlucifugus_gene_ensembl  Myotis lucifugus genes (myoLuc2)    myoLuc2
+    7    hsapiens_gene_ensembl    Homo sapiens genes (GRCh37.p8)  GRCh37.p8
     """
-    return rpy2_to_pandas(r.listDatasets(mart=r.useMart(mart_name)))
+    return rpy2_to_pandas(r.listDatasets(mart=r.useMart(mart_name), verbose=verbose))
 
 
 def list_attributes(mart_name, dataset):
