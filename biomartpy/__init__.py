@@ -3,9 +3,11 @@ Simple interface for getting a lookup table of gene ID -> other attributes via
 biomaRt
 """
 import os
+import rpy2
 from rpy2 import robjects
 from rpy2.robjects import r
 import pandas
+import numpy as np
 
 r.library('biomaRt')
 
@@ -89,27 +91,142 @@ def list_filters(mart_name, dataset):
     return rpy2_to_pandas(r.listFilters(dataset))
 
 
-def make_lookup(mart_name, dataset, attributes):
+def make_lookup(mart_name, dataset, attributes, filters=None, values=None,
+                unique_rows=True):
     """
     Given a mart name, dataset name, and a list of attributes, return
     a pandas.DataFrame indexed by the first attribute in the list provided.
 
-    >>> attributes = ['flybase_gene_id', 'flybasename_gene', 'description']
-    >>> df = make_lookup('ensembl', dataset='dmelanogaster_gene_ensembl',
-    ... attributes=attributes)
+    In R, filters is a character vector, and values is either a single
+    character vector (if only one filter provided) or a list of character
+    vectors.
+
+    This function allows `filters` to be a dictionary where keys are filters
+    and values are...values.
+
+
+    >>> mart_name = 'ensembl'
+    >>> dataset = 'dmelanogaster_gene_ensembl'
+    >>> filters = ['flybase_gene_id', 'chromosome_name']
+    >>> attributes = ['flybase_gene_id', 'flybasename_gene', 'chromosome_name']
+    >>> values = [['FBgn0031208', 'FBgn0002121', 'FBgn0031209', 'FBgn0051973'], ['2L']]
+    >>> df = make_lookup(
+    ... mart_name=mart_name,
+    ... dataset=dataset,
+    ... attributes=attributes,
+    ... filters=filters,
+    ... values=values)
+
+    Alternatively, make a dictionary of filters: values, in which case you
+    don't need to provide `values` separately:
+
+    >>> filters = {
+    ... 'flybase_gene_id': ['FBgn0031208', 'FBgn0002121', 'FBgn0031209', 'FBgn0051973'],
+    ... 'chromosome_name': ['2L']}
+
+    >>> df2 = make_lookup(
+    ... mart_name=mart_name,
+    ... dataset=dataset,
+    ... attributes=attributes,
+    ... filters=filters)
+
+    Confirm that both methods yield identical results:
+
+    >>> assert np.all(df.values == df2.values)
+
+    Check results:
+
+    >>> df.head()
+                    flybasename_gene chromosome_name
+    flybase_gene_id                                 
+    FBgn0002121               l(2)gl              2L
+    FBgn0031208              CG11023              2L
+    FBgn0031209                Ir21a              2L
+    FBgn0051973                 Cda5              2L
+
+    Indexing by gene ID (or whatever was the first attribute provided):
 
     >>> df.ix['FBgn0031209']
-    flybasename_gene                                                Ir21a
-    description         Ionotropic receptor 21a [Source:FlyBase gene n...
+    flybasename_gene    Ir21a
+    chromosome_name        2L
     Name: FBgn0031209
 
-    >>> df.ix['FBgn0031209'][attributes[1]]
+
+    Extracting data:
+
+    >>> df.ix['FBgn0031209']['flybasename_gene']
     'Ir21a'
+
+    Or get all names:
+
+    >>> df['flybasename_gene']
+    flybase_gene_id
+    FBgn0002121         l(2)gl
+    FBgn0031208        CG11023
+    FBgn0031209          Ir21a
+    FBgn0051973           Cda5
+    Name: flybasename_gene
+
     """
+    def _filter_and_values_to_RList(d):
+        """`d` is a dictionary of filters: values.  Returns a StrVector and
+        a ListVector of StrVectors"""
+
+        # Could use ListVector directly with the dict, but want to guarantee
+        # positional order of filters and values
+        f = robjects.StrVector(d.keys())
+        v = robjects.ListVector(
+            rpy2.rlike.container.TaggedList(
+                d.values(),
+                tags=d.keys()
+            )
+        )
+        return f, v
+
+    if isinstance(filters, dict):
+        if values is not None:
+            raise ValueError("`values` are already specified in the "
+                             "`filters` dictionary")
+        filter_value_dict = filters
+
+    elif filters is None:
+        if values is not None:
+            raise ValueError("`filters` must be specified if `values` "
+                             "is specified; alternatively use a dictionary "
+                             " for `filters`")
+        filter_value_dict = {"": ""}
+
+    elif filters and values:
+        # values needs to be a list of lists; convert it to one if it's not already
+        if not isinstance(values[0], (list, tuple)):
+            values = [values]
+
+        # If we got here, then assume filters is a list or tuple
+        if len(filters) != len(values):
+            raise ValueError('Length of `filters` and `values` must match')
+
+        filter_value_dict = dict(zip(filters, values))
+
+    elif filters and values is None:
+        filter_value_dict = dict(zip(filters, ["" for i in filters]))
+
+    else:
+        raise ValueError('unhandled case')
+
+
+    filters, values = _filter_and_values_to_RList(filter_value_dict)
+
     mart = r.useDataset(dataset, mart=r.useMart(mart_name))
     attributes = robjects.StrVector(attributes)
-    results = r.getBM(attributes=attributes, mart=mart)
+
+    results = r.getBM(
+        attributes=attributes,
+        filters=filters,
+        values=values,
+        uniqueRows=unique_rows,
+        mart=mart)
     return rpy2_to_pandas(results, index_col=0)
+
 
 if __name__ == "__main__":
     import doctest
