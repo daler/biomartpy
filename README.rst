@@ -4,9 +4,16 @@ Simple interface to access BioMart from Python (Python -> rpy2 -> R's biomaRt
 -> ``pandas.DataFrame``), originally written to get a lookup table of gene IDs
 -> various attributes for downstream work...
 
-Install::
+Install from PyPI::
 
     $ pip install biomartpy
+
+
+Or from github::
+
+    $ git clone git@github.com:daler/biomartpy.git
+    $ cd biomartpy
+    $ python setup.py develop
 
 Choose a mart (use ``list_marts()`` to decide)::
 
