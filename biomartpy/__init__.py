@@ -21,6 +21,7 @@ def rpy2_to_pandas(rdf, index_col=None):
     https://github.com/pydata/pandas/issues/1448
     """
     intermediate = 'rdf.txt'
+    rdf = r['as.data.frame'](rdf)
     rdf.to_csvfile(path=intermediate, sep='\t', row_names=False)
     df = pandas.read_table(intermediate, index_col=index_col)
     os.unlink(intermediate)
