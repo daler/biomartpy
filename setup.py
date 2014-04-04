@@ -1,9 +1,6 @@
-import ez_setup
-ez_setup.use_setuptools()
-
 import os
+from setuptools import setup, find_packages
 import sys
-from setuptools import setup
 
 
 long_description = """
@@ -12,10 +9,9 @@ Simple interface for accessing biomaRt from Python (via rpy2 and pandas)
 
 setup(
         name="biomartpy",
-        version=0.1,
+        version='0.1.1',
         install_requires=['pandas', 'rpy2'],
-        packages=['biomartpy',
-                  ],
+        packages=find_packages(),
         author="Ryan Dale",
         description=long_description,
         long_description=long_description,
