@@ -62,7 +62,8 @@ def list_datasets(mart_name, verbose=False):
     <BLANKLINE>
     [2 rows x 3 columns]
     """
-    return rpy2_to_pandas(r.listDatasets(mart=r.useMart(mart_name), verbose=verbose))
+    return rpy2_to_pandas(
+        r.listDatasets(mart=r.useMart(mart_name), verbose=verbose))
 
 
 def list_attributes(mart_name, dataset):
@@ -183,10 +184,18 @@ def make_lookup(mart_name, dataset, attributes, filters=None, values=None,
     Name: flybasename_gene, dtype: object
 
     """
+    mart = r.useDataset(dataset, mart=r.useMart(mart_name))
+    attributes = robjects.StrVector(attributes)
+
+    kwargs = dict(
+        attributes=attributes,
+        uniqueRows=unique_rows,
+        mart=mart
+    )
+
     def _filter_and_values_to_RList(d):
         """`d` is a dictionary of filters: values.  Returns a StrVector and
         a ListVector of StrVectors"""
-
         # Could use ListVector directly with the dict, but want to guarantee
         # positional order of filters and values
         f = robjects.StrVector(d.keys())
@@ -203,16 +212,19 @@ def make_lookup(mart_name, dataset, attributes, filters=None, values=None,
             raise ValueError("`values` are already specified in the "
                              "`filters` dictionary")
         filter_value_dict = filters
+        _filters, _values = _filter_and_values_to_RList(filter_value_dict)
+        kwargs['filters'] = _filters
+        kwargs['values'] = _values
 
     elif filters is None:
         if values is not None:
             raise ValueError("`filters` must be specified if `values` "
                              "is specified; alternatively use a dictionary "
                              " for `filters`")
-        filter_value_dict = {"": ""}
 
     elif filters and values:
-        # values needs to be a list of lists; convert it to one if it's not already
+        # values needs to be a list of lists; convert it to one if it's not
+        # already
         if not isinstance(values[0], (list, tuple)):
             values = [values]
 
@@ -221,25 +233,14 @@ def make_lookup(mart_name, dataset, attributes, filters=None, values=None,
             raise ValueError('Length of `filters` and `values` must match')
 
         filter_value_dict = dict(zip(filters, values))
-
-    elif filters and values is None:
-        filter_value_dict = dict(zip(filters, ["" for i in filters]))
+        _filters, _values = _filter_and_values_to_RList(filter_value_dict)
+        kwargs['filters'] = _filters
+        kwargs['values'] = _values
 
     else:
         raise ValueError('unhandled case')
 
-
-    filters, values = _filter_and_values_to_RList(filter_value_dict)
-
-    mart = r.useDataset(dataset, mart=r.useMart(mart_name))
-    attributes = robjects.StrVector(attributes)
-
-    results = r.getBM(
-        attributes=attributes,
-        filters=filters,
-        values=values,
-        uniqueRows=unique_rows,
-        mart=mart)
+    results = r.getBM(**kwargs)
     return rpy2_to_pandas(results, index_col=0)
 
 
